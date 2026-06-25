@@ -244,7 +244,7 @@ The cross-validation compares BB84 QBER and secure key rate across **four backen
 ## 9. Invariants & Assumptions
 
 - Photons are modeled at the **bit/basis level**, not as full quantum states — sufficient for prepare-and-measure BB84, not for entanglement or multi-qubit protocols.
-- Optics are **ideal** on a basis match (no polarization/phase error injection yet); QBER in the baseline therefore approaches 0 except for dark-count and finite-sampling noise.
+- QBER comes from a **depolarizing polarization-misalignment** model (`polarization_error = 1 − F`), giving an intrinsic QBER ≈ (1 − F)/2, plus dark-count and finite-sampling noise. Phase error and timing (`dead_time`, `timing_jitter`) are not yet modeled.
 - The loss model is **memoryless and per-packet**; it captures average attenuation, not burst loss or correlated fading.
 - One **wavelength / one link** per run. Multi-hop and WDM are designed-for (header fields exist) but not implemented.
 - The P4 `random` extern and the Python `numpy` RNG are independent; reproducibility holds **within** a backend (fixed `seed`), not bit-for-bit **across** the P4 and Python paths.

@@ -10,6 +10,7 @@ abstract: >-
 type: software
 version: "0.1.0"
 license: Apache-2.0
+repository-code: "https://github.com/kthare10/qfabric"
 repository-artifact: "https://artifacts.fabric-testbed.net/"
 keywords:
   - quantum networking

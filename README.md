@@ -6,6 +6,15 @@ The core idea: pure quantum-network simulators (NetSquid, SeQUeNCe) assume an *i
 
 See [`SPEC.md`](SPEC.md) for the design and wire formats, and [`ROADMAP.md`](ROADMAP.md) for what's done and what's next.
 
+## Get the code
+
+```bash
+git clone https://github.com/kthare10/qfabric.git
+cd qfabric
+```
+
+Repository: <https://github.com/kthare10/qfabric>
+
 ## Architecture
 
 ```
