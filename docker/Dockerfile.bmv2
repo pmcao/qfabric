@@ -1,60 +1,32 @@
-# Dockerfile.bmv2 — prebuilt BMv2 (simple_switch) + p4c (p4c-bm2-ss) image.
+# Dockerfile.bmv2 — BMv2 (simple_switch) + p4c (p4c-bm2-ss) for QFabric.
 #
-# Building BMv2 + p4c from source takes many minutes; this image bakes them in
-# once (in CI) so a FABRIC switch node only has to `docker pull` and run.
+# Builds on the official p4lang/p4c image, which is itself FROM
+# p4lang/behavioral-model — so it already ships simple_switch, simple_switch_CLI,
+# AND p4c-bm2-ss prebuilt. We just add a couple of net tools for debugging. This
+# avoids compiling BMv2/p4c from source (which OOMs on small CI runners) and lets
+# a FABRIC switch node `docker pull` instead of building anything.
+#
 # Published to GHCR by .github/workflows/build-bmv2.yml as
 #   ghcr.io/kthare10/qfabric-bmv2:latest
 #
-# Build locally:  docker build -f docker/Dockerfile.bmv2 -t qfabric-bmv2 .
 # Run the switch: docker run -d --name bmv2 --privileged --network host \
 #                   -v $HOME/qfabric:/work qfabric-bmv2 \
 #                   simple_switch --interface 0@<ifaceA> --interface 1@<ifaceB> \
 #                   --log-level warn /work/p4/bmv2/quantum_channel.json
 #
-# Ubuntu 22.04 base: p4lang's install_deps.sh targets Debian/Ubuntu, so the build
-# is reliable here (unlike a Rocky base).
-FROM ubuntu:22.04
+# You can also use the upstream image directly:
+#   export QFABRIC_BMV2_IMAGE=p4lang/p4c:latest
+FROM p4lang/p4c:latest
 
 LABEL org.opencontainers.image.title="qfabric-bmv2"
 LABEL org.opencontainers.image.description="BMv2 simple_switch + p4c (bmv2 backend) for QFabric"
 LABEL org.opencontainers.image.source="https://github.com/kthare10/qfabric"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Base toolchain for cloning + building. NOTE: do NOT remove /var/lib/apt/lists
-# here — behavioral-model/install_deps.sh runs `apt-get install` and needs a
-# populated package index. (The lists are cleared in the final layer instead.)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git build-essential automake libtool pkg-config \
-        cmake bison flex python3 python3-pip sudo wget \
-        libgmp-dev libpcap-dev libboost-all-dev libgc-dev libssl-dev \
-        libjsoncpp-dev libtool-bin iproute2 ethtool tcpdump
-
-# --- behavioral-model (BMv2: simple_switch, simple_switch_CLI) ---
-# `apt-get update` again so install_deps.sh can resolve its packages (grpc,
-# protobuf, thrift, nanomsg, xxhash, ... — all in Ubuntu 22.04 main/universe).
-WORKDIR /opt
-RUN git clone --depth 1 https://github.com/p4lang/behavioral-model.git && \
-    cd behavioral-model && \
-    apt-get update && \
-    ./install_deps.sh && \
-    ./autogen.sh && \
-    ./configure --enable-debugger && \
-    make -j"$(nproc)" && \
-    make install && \
-    ldconfig
-
-# --- p4c (provides p4c-bm2-ss, the BMv2 backend compiler) ---
-RUN git clone --recursive --depth 1 https://github.com/p4lang/p4c.git && \
-    cd p4c && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release \
-        -DENABLE_BMV2=ON -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF \
-        -DENABLE_DPDK=OFF -DENABLE_P4TC=OFF -DENABLE_GTESTS=OFF && \
-    make -j"$(nproc)" && \
-    make install && \
-    ldconfig && \
-    rm -rf /opt/p4c/build/CMakeFiles /var/lib/apt/lists/*
+# Optional net tools for debugging interface attachment inside the container.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iproute2 ethtool tcpdump \
+    && rm -rf /var/lib/apt/lists/* || true
 
 # Fail the build early if the expected tools aren't on PATH.
 RUN simple_switch --version && p4c-bm2-ss --version
