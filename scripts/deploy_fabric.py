@@ -764,6 +764,140 @@ def run_bb84(slice_obj, scenario_path: str, alice_mac: str, bob_mac: str,
               "reported as missing, not stale.")
 
 
+_CLASSICAL_PORT = 5100
+
+
+def apply_classical_netem(slice_obj, delay_ms=0, jitter_ms=0, loss_pct=0.0,
+                          alice_delay_ms=None, bob_delay_ms=None):
+    """Impair ONLY the classical BB84 channel (TCP port 5100), leaving the photon
+    data plane (EtherType 0x7101, which is non-IP) untouched.
+
+    On each endpoint's data-plane iface we install a `prio` qdisc and attach a
+    `netem` band, then a u32 filter routes classical TCP:5100 traffic (matched on
+    src or dst port) into the netem band — photon frames fall through unaffected.
+    This is what lets us measure the *classical-network* effect on QKD in isolation,
+    which ideal-channel simulators cannot.
+
+    delay_ms/jitter_ms/loss_pct apply symmetrically; pass alice_delay_ms /
+    bob_delay_ms for asymmetric per-direction latency.
+    """
+    pairs = [
+        ("alice", "net_alice_switch", delay_ms if alice_delay_ms is None else alice_delay_ms),
+        ("bob", "net_switch_bob", delay_ms if bob_delay_ms is None else bob_delay_ms),
+    ]
+    print(f"\n=== Applying classical-channel netem (TCP:{_CLASSICAL_PORT}) ===")
+    for name, netname, d in pairs:
+        node = slice_obj.get_node(name)
+        iface = node.get_interface(network_name=netname).get_device_name()
+        netem = "netem"
+        if d:
+            netem += f" delay {d}ms" + (f" {jitter_ms}ms" if jitter_ms else "")
+        if loss_pct:
+            netem += f" loss {loss_pct}%"
+        node.execute(
+            f"sudo tc qdisc del dev {iface} root 2>/dev/null; "
+            f"sudo tc qdisc add dev {iface} root handle 1: prio && "
+            f"sudo tc qdisc add dev {iface} parent 1:3 handle 30: {netem} && "
+            f"sudo tc filter add dev {iface} parent 1:0 protocol ip prio 1 u32 "
+            f"match ip dport {_CLASSICAL_PORT} 0xffff flowid 1:3 && "
+            f"sudo tc filter add dev {iface} parent 1:0 protocol ip prio 1 u32 "
+            f"match ip sport {_CLASSICAL_PORT} 0xffff flowid 1:3",
+            quiet=True,
+        )
+        print(f"  {name} ({iface}): {netem}")
+
+
+def clear_classical_netem(slice_obj):
+    """Remove any netem/tc qdisc from the Alice and Bob data-plane interfaces."""
+    for name, netname in [("alice", "net_alice_switch"), ("bob", "net_switch_bob")]:
+        node = slice_obj.get_node(name)
+        iface = node.get_interface(network_name=netname).get_device_name()
+        node.execute(f"sudo tc qdisc del dev {iface} root 2>/dev/null || true", quiet=True)
+    print("  cleared classical netem on Alice and Bob")
+
+
+def run_network_conditions_experiment(
+    slice_obj, scenario_path="validation/scenarios/fabric_1km.yml", conditions=None,
+):
+    """Measure the effect of CLASSICAL-channel conditions on BB84.
+
+    For each condition, impair only the classical channel, run BB84, and record
+    QBER (should be ~flat — TCP is reliable), elapsed time-to-key, and effective
+    key bits/second. This isolates the real-network impact that ideal-channel
+    simulators (SeQUeNCe/NetSquid) cannot capture. Results → results/network_effects.json.
+
+    Prereqs: configure_switch + setup_dataplane_ips already done (notebook 01).
+    `conditions` is a list of dicts: {name, delay_ms, jitter_ms, loss_pct,
+    alice_delay_ms, bob_delay_ms}; defaults to a representative set.
+    """
+    import json as _json
+
+    if conditions is None:
+        conditions = [
+            {"name": "baseline"},
+            {"name": "latency_25ms", "delay_ms": 25},
+            {"name": "latency_100ms", "delay_ms": 100},
+            {"name": "jitter_50pm20ms", "delay_ms": 50, "jitter_ms": 20},
+            {"name": "loss_1pct", "loss_pct": 1.0},
+            {"name": "asymmetric_100_10ms", "alice_delay_ms": 100, "bob_delay_ms": 10},
+        ]
+
+    results_dir = PROJECT_DIR / "results"
+    alice = slice_obj.get_node("alice")
+    bob = slice_obj.get_node("bob")
+    switch = slice_obj.get_node("switch")
+    alice_mac = alice.get_interface(network_name="net_alice_switch").get_mac()
+    bob_mac = bob.get_interface(network_name="net_switch_bob").get_mac()
+    sw_alice_mac = switch.get_interface(network_name="net_alice_switch").get_mac()
+
+    rows = []
+    try:
+        for i, cond in enumerate(conditions, 1):
+            name = cond.get("name", f"cond{i}")
+            print(f"\n##### [{i}/{len(conditions)}] classical condition: {name} #####")
+            clear_classical_netem(slice_obj)
+            netem_kw = {k: v for k, v in cond.items() if k != "name"}
+            if netem_kw:
+                apply_classical_netem(slice_obj, **netem_kw)
+
+            (results_dir / "fabric_bob_results.json").unlink(missing_ok=True)
+            try:
+                run_bb84(slice_obj, scenario_path, alice_mac, bob_mac,
+                         sw_alice_mac=sw_alice_mac, bob_data_ip="10.10.1.2")
+            except Exception as e:
+                print(f"  !! run failed under {name}: {e}")
+
+            row = {"condition": name, **netem_kw}
+            bob_path = results_dir / "fabric_bob_results.json"
+            txt = bob_path.read_text().strip() if bob_path.exists() else ""
+            if txt:
+                try:
+                    d = _json.loads(txt)
+                    elapsed = d.get("elapsed_seconds", 0.0) or 0.0
+                    fk = d.get("final_key_bits", 0)
+                    row.update({
+                        "qber": d.get("qber", 0.0),
+                        "sifted_bits": d.get("sifted_bits", 0),
+                        "final_key_bits": fk,
+                        "secure_key_rate": d.get("secure_key_rate", 0.0),  # bits/photon
+                        "elapsed_seconds": elapsed,
+                        "key_bits_per_sec": (fk / elapsed) if elapsed > 0 else 0.0,
+                    })
+                except _json.JSONDecodeError:
+                    row["error"] = "invalid results json"
+            else:
+                row["error"] = "no result (run failed/timed out under this condition)"
+            print(f"  {name}: QBER={row.get('qber')}, elapsed={row.get('elapsed_seconds')}s, "
+                  f"bits/s={row.get('key_bits_per_sec')}")
+            rows.append(row)
+            (results_dir / "network_effects.json").write_text(_json.dumps(rows, indent=2))
+    finally:
+        clear_classical_netem(slice_obj)
+
+    print(f"\nSaved -> {results_dir / 'network_effects.json'} ({len(rows)} conditions)")
+    return rows
+
+
 def cleanup(fablib, slice_name: str):
     """Delete the FABRIC slice."""
     print(f"\n=== Deleting slice '{slice_name}' ===")

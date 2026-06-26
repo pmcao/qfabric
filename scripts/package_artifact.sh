@@ -46,7 +46,8 @@ EXCLUDES=(
   --exclude='.idea' --exclude='.vscode' --exclude='.DS_Store' --exclude='.ipynb_checkpoints'
   --exclude='._*' --exclude='cc-usage-log.md' --exclude='*.log' --exclude='*.pcap'
   --exclude='results/cross_validation.json' --exclude='results/all_scenarios.json'
-  --exclude='results/_tmp_scenarios' --exclude='p4/bmv2/*.json'
+  --exclude='results/network_effects.json' --exclude='results/_tmp_scenarios'
+  --exclude='p4/bmv2/*.json'
 )
 
 # Stage a filtered copy, strip Jupyter notebook outputs there (so the artifact

@@ -37,7 +37,7 @@ Alice (Python)  →  BMv2 P4 Switch  →  Bob (Python)
 | `p4/bmv2/` | BMv2 V1Model P4 quantum-channel program (loss model + L2 forwarding) |
 | `validation/` | Cross-validation framework — runs the same scenario on QFabric, SeQUeNCe, and NetSquid and checks statistical agreement |
 | `scripts/` | `deploy_fabric.py` (full FABRIC slice provisioning + run), `install_bmv2.sh`, `package_artifact.sh`, and the cross-validation env setup scripts |
-| `notebooks/` | Linear workflow: `00_overview` → `01_setup_slice` → `02_run_experiment` → `03_cross_validation` → `04_analysis` → `05_run_all_scenarios` |
+| `notebooks/` | Linear workflow: `00_overview` → `01_setup_slice` → `02_run_experiment` → `03_cross_validation` → `04_analysis` → `05_run_all_scenarios` → `06_network_effects` |
 | `kiso/` | Kiso experiment config for FABRIC runs |
 | `docker/` | `Dockerfile.bmv2` for a reproducible BMv2 toolchain |
 | `tests/` | Unit tests for BB84, detector, photon, metrics, and cross-validation |
@@ -56,6 +56,7 @@ The notebooks form a single linear workflow. Start at `00_overview`:
 | 3 | `03_cross_validation` | Compare QFabric vs SeQUeNCe & NetSquid (one scenario, on the slice) | FABRIC JupyterHub |
 | 4 | `04_analysis` | Load results and generate all plots & tables | Anywhere (ships sample results) |
 | 5 | `05_run_all_scenarios` | Run **every** scenario (singles + sweeps) on the slice + QBER/key-rate sweep figures | FABRIC JupyterHub |
+| 6 | `06_network_effects` | Quantify classical-network (latency/jitter/loss) impact on QKD throughput — the core contribution | FABRIC JupyterHub |
 
 > Notebooks 1–2 provision and drive a FABRIC slice (BMv2 is installed on the switch node automatically). Notebooks 0, 3, 4 are pure-Python and run anywhere (including JupyterHub) — 4 works standalone on the bundled sample results.
 

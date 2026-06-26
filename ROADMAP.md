@@ -55,7 +55,7 @@ QFabric runs **BB84 QKD over a single emulated link**, end-to-end on a real FABR
 - ✅ Statistically-correct agreement test (combined-variance, `qber_sample_bits`-aware) + honest SKIPPED/INCONCLUSIVE reporting.
 - ✅ The **live BMv2/socket measurement** is the QFabric data point in the comparison (not just the sim).
 - 🟡 Confirm SeQUeNCe/NetSquid versions on your slice (deadsnakes 3.12 build + netsquid.org creds).
-- ⬜ Quantify where **real classical-network effects** (latency, jitter, congestion) make QFabric diverge from ideal-channel simulators — the core scientific contribution.
+- 🟡 Quantify where **real classical-network effects** (latency, jitter, congestion) make QFabric diverge from ideal-channel simulators — the core scientific contribution. Scaffolding done: `apply_classical_netem` (impairs only TCP:5100), `run_network_conditions_experiment`, and notebook `06_network_effects` (throughput / time-to-key / QBER vs condition). Needs a recorded FABRIC dataset across conditions/sites.
 - ⬜ Publish the cross-validation **dataset**.
 
 ## Phase 4 — Scale-Up Experiments ⬜
