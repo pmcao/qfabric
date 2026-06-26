@@ -358,8 +358,30 @@ def run_all_scenarios_on_fabric(slice_obj, scenarios_dir="validation/scenarios",
     return rows
 
 
-def install_deps(slice_obj):
-    """Install dependencies on all nodes."""
+def setup_switch_docker(slice_obj, image="ghcr.io/kthare10/qfabric-bmv2:latest"):
+    """Install Docker on the switch and pull the prebuilt BMv2 image.
+
+    Use this instead of the switch's source build (install_deps build_bmv2=False),
+    then export QFABRIC_BMV2_IMAGE=<image> so configure_switch runs simple_switch
+    from the container. Returns the image ref.
+    """
+    print(f"\n=== Preparing switch to run BMv2 from Docker image: {image} ===")
+    switch = slice_obj.get_node("switch")
+    switch.execute(
+        f"cd ~/qfabric && chmod +x scripts/setup_switch_docker.sh && "
+        f"bash scripts/setup_switch_docker.sh '{image}'",
+        quiet=False,
+    )
+    return image
+
+
+def install_deps(slice_obj, build_bmv2=True):
+    """Install dependencies on all nodes.
+
+    Alice/Bob always get the Python runtime deps. The switch's BMv2/p4c source
+    build (slow) is skipped when build_bmv2=False — use that with
+    setup_switch_docker() to run BMv2 from a prebuilt container instead.
+    """
     print("\n=== Installing dependencies ===")
 
     # Install Python deps on Alice and Bob. Fresh FABRIC images may ship without
@@ -383,6 +405,10 @@ def install_deps(slice_obj):
             quiet=True,
         )
         print(f"    {node_name}: {check.strip() or stderr[:200]}")
+
+    if not build_bmv2:
+        print("  Skipping switch BMv2 source build (using prebuilt Docker image).")
+        return
 
     # Install BMv2 on switch
     switch = slice_obj.get_node("switch")
