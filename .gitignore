@@ -21,6 +21,11 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Credentials / local env — never commit (see .pre-commit-config.yaml for gitleaks)
+.env
+.env.*
+!.env.example
+
 # Project specific
 # Ignore results CONTENTS (not the dir) so the sample-result exceptions below work.
 results/*

@@ -1,0 +1,20 @@
+# gitleaks config — extends the built-in ruleset with a rule that catches
+# hard-coded credential assignments like `os.environ['NETSQUID_PASS'] = '...'`,
+# which the default rules miss (they key off `password`/`secret`/`apikey`, not `PASS`/`PWD`).
+title = "qfabric gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "credential-assignment"
+description = "Hard-coded password/secret/token/credential assignment"
+# identifier containing pass/pwd/secret/token/cred/key, then = or :, then a quoted value (>=6 non-trivial chars)
+regex = '''(?i)(password|passwd|pwd|pass|secret|token|credential|api[_-]?key)['"]?[\])]?\s*[:=]\s*['"][^'"\n]{6,}['"]'''
+keywords = ["pass", "passwd", "pwd", "secret", "token", "credential", "key"]
+
+[[rules.allowlists]]
+description = "Ignore obvious placeholders, not real secrets"
+regexes = [
+  '''['"](\.\.\.|x{3,}|changeme|placeholder|your[_-]?\w+|<[^>]+>|\$\{[^}]+\}|\*{3,}[^'"]*)['"]''',
+]
