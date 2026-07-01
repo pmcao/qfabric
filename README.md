@@ -62,6 +62,10 @@ The notebooks form a single linear workflow. Start at `00_overview`:
 
 > Notebooks 1–2 provision and drive a FABRIC slice (BMv2 is installed on the switch node automatically). Notebooks 0, 3, 4 are pure-Python and run anywhere (including JupyterHub) — 4 works standalone on the bundled sample results.
 
+### Local VM Emulation
+
+If you want to run the live emulation locally using a single VM with network namespaces instead of provisioning a slice on the remote FABRIC cloud testbed, see [LOCAL_VM.md](LOCAL_VM.md) for full setup and execution instructions.
+
 ### Prerequisites
 
 - Python 3.11 (for the cross-validation env — see below)
